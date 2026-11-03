@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.bike.BikeVehicleMapper">
+  <resultMap id="vehicle" type="com.ruoyi.system.domain.bike.BikeVehicle">
+    <id property="id" column="id"/><result property="vehicleNo" column="vehicle_no"/>
+    <result property="stationId" column="station_id"/><result property="stationName" column="station_name"/>
+    <result property="status" column="status"/><result property="description" column="description"/>
+    <result property="createdAt" column="created_at"/><result property="updatedAt" column="updated_at"/>
+  </resultMap>
+  <resultMap id="publicVehicle" type="com.ruoyi.system.domain.bike.BikeVehiclePublic">
+    <id property="id" column="id"/><result property="vehicleNo" column="vehicle_no"/>
+    <result property="stationId" column="station_id"/><result property="stationName" column="station_name"/>
+  </resultMap>
+  <resultMap id="stationOption" type="com.ruoyi.system.domain.bike.BikeVehicleStationOption">
+    <id property="id" column="id"/><result property="name" column="name"/>
+  </resultMap>
+  <sql id="adminColumns">v.id,v.vehicle_no,v.station_id,v.status,v.description,v.created_at,v.updated_at,s.name AS station_name</sql>
+  <select id="selectList" parameterType="com.ruoyi.system.domain.bike.BikeVehicle" resultMap="vehicle">
+    SELECT <include refid="adminColumns"/> FROM bike_vehicle v JOIN bike_station s ON s.id=v.station_id
+    <where>
+      <if test="vehicleNo != null and vehicleNo != ''">AND v.vehicle_no LIKE CONCAT('%',#{vehicleNo},'%')</if>
+      <if test="stationId != null">AND v.station_id=#{stationId}</if>
+      <if test="status != null and status != ''">AND v.status=#{status}</if>
+    </where>
+    ORDER BY v.id DESC
+  </select>
+  <select id="selectById" resultMap="vehicle">
+    SELECT <include refid="adminColumns"/> FROM bike_vehicle v JOIN bike_station s ON s.id=v.station_id WHERE v.id=#{id}
+  </select>
+  <select id="lockById" resultMap="vehicle">
+    SELECT id,vehicle_no,station_id,status,description,created_at,updated_at FROM bike_vehicle WHERE id=#{id} FOR UPDATE
+  </select>
+  <select id="selectAvailable" resultMap="publicVehicle">
+    SELECT v.id,v.vehicle_no,v.station_id,s.name AS station_name
+    FROM bike_vehicle v JOIN bike_station s ON s.id=v.station_id
+    WHERE v.status='idle' AND s.status='enabled'
+      AND NOT EXISTS (SELECT 1 FROM bike_rental_order o WHERE o.vehicle_id=v.id AND o.status IN ('ongoing','exception'))
+      AND NOT EXISTS (SELECT 1 FROM bike_repair_order r WHERE r.vehicle_id=v.id AND r.status IN ('pending','processing'))
+      <if test="vehicleNo != null and vehicleNo != ''">AND v.vehicle_no LIKE CONCAT('%',#{vehicleNo},'%')</if>
+      <if test="stationId != null">AND v.station_id=#{stationId}</if>
+    ORDER BY v.id DESC
+  </select>
+  <select id="selectEnabledStations" resultMap="stationOption">
+    SELECT id,name FROM bike_station WHERE status='enabled' ORDER BY name,id
+  </select>
+  <select id="lockStationStatus" resultType="string">SELECT status FROM bike_station WHERE id=#{stationId} FOR UPDATE</select>
+  <select id="countActiveOrders" resultType="int">SELECT COUNT(*) FROM bike_rental_order WHERE vehicle_id=#{vehicleId} AND status IN ('ongoing','exception')</select>
+  <select id="countOpenRepairs" resultType="int">SELECT COUNT(*) FROM bike_repair_order WHERE vehicle_id=#{vehicleId} AND status IN ('pending','processing')</select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO bike_vehicle(vehicle_no,station_id,status,description) VALUES(#{vehicleNo},#{stationId},#{status},#{description})
+  </insert>
+  <update id="update">
+    UPDATE bike_vehicle SET vehicle_no=#{vehicleNo},station_id=#{stationId},status=#{status},description=#{description} WHERE id=#{id}
+  </update>
+</mapper>
