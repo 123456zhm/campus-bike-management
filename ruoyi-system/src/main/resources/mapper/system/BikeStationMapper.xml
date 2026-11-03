@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.BikeStationMapper">
+    <resultMap id="StationResult" type="com.ruoyi.system.domain.BikeStation">
+        <id property="id" column="id"/>
+        <result property="stationNo" column="station_no"/>
+        <result property="name" column="name"/>
+        <result property="locationText" column="location_text"/>
+        <result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/>
+        <result property="updatedAt" column="updated_at"/>
+        <result property="totalCount" column="total_count"/>
+        <result property="idleCount" column="idle_count"/>
+        <result property="availableCount" column="available_count"/>
+        <result property="rentedCount" column="rented_count"/>
+        <result property="repairCount" column="repair_count"/>
+        <result property="scrappedCount" column="scrapped_count"/>
+    </resultMap>
+    <sql id="StationWithCounts">
+        SELECT s.id,s.station_no,s.name,s.location_text,s.status,s.created_at,s.updated_at,
+               COALESCE(v.total_count,0) AS total_count, COALESCE(v.idle_count,0) AS idle_count,
+               CASE WHEN s.status='enabled' THEN COALESCE(v.available_count,0) ELSE 0 END AS available_count,
+               COALESCE(v.rented_count,0) AS rented_count, COALESCE(v.repair_count,0) AS repair_count,
+               COALESCE(v.scrapped_count,0) AS scrapped_count
+        FROM bike_station s LEFT JOIN (
+            SELECT station_id,COUNT(*) AS total_count,
+                   SUM(CASE WHEN status='idle' THEN 1 ELSE 0 END) AS idle_count,
+                   SUM(CASE WHEN status='idle'
+                        AND NOT EXISTS (SELECT 1 FROM bike_rental_order o WHERE o.vehicle_id=bv.id AND o.status IN ('ongoing','exception'))
+                        AND NOT EXISTS (SELECT 1 FROM bike_repair_order r WHERE r.vehicle_id=bv.id AND r.status IN ('pending','processing'))
+                        THEN 1 ELSE 0 END) AS available_count,
+                   SUM(CASE WHEN status='rented' THEN 1 ELSE 0 END) AS rented_count,
+                   SUM(CASE WHEN status='repair' THEN 1 ELSE 0 END) AS repair_count,
+                   SUM(CASE WHEN status='scrapped' THEN 1 ELSE 0 END) AS scrapped_count
+            FROM bike_vehicle bv GROUP BY station_id
+        ) v ON v.station_id=s.id
+    </sql>
+    <select id="selectList" resultMap="StationResult">
+        <include refid="StationWithCounts"/>
+        <where>
+            <if test="stationNo != null and stationNo != ''">AND s.station_no LIKE CONCAT('%',#{stationNo},'%')</if>
+            <if test="name != null and name != ''">AND s.name LIKE CONCAT('%',#{name},'%')</if>
+            <if test="status != null and status != ''">AND s.status=#{status}</if>
+        </where>
+        ORDER BY s.id DESC
+    </select>
+    <select id="selectById" resultMap="StationResult"><include refid="StationWithCounts"/> WHERE s.id=#{id}</select>
+    <select id="selectForUpdate" resultMap="StationResult">SELECT id,station_no,name,location_text,status FROM bike_station WHERE id=#{id} FOR UPDATE</select>
+    <select id="countByStationNo" resultType="long">
+        SELECT COUNT(*) FROM bike_station WHERE station_no=#{stationNo}
+        <if test="excludeId != null">AND id != #{excludeId}</if>
+    </select>
+    <select id="countVehicles" resultType="long">SELECT COUNT(*) FROM bike_vehicle WHERE station_id=#{id}</select>
+    <select id="countOrders" resultType="long">SELECT COUNT(*) FROM bike_rental_order WHERE start_station_id=#{id} OR end_station_id=#{id}</select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">INSERT INTO bike_station(station_no,name,location_text,status) VALUES(#{stationNo},#{name},#{locationText},#{status})</insert>
+    <update id="update">UPDATE bike_station SET station_no=#{stationNo},name=#{name},location_text=#{locationText},status=#{status} WHERE id=#{id}</update>
+    <delete id="delete">DELETE FROM bike_station WHERE id=#{id}</delete>
+</mapper>
