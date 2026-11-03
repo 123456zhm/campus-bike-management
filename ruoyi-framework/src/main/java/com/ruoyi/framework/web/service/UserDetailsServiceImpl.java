@@ -14,6 +14,7 @@ import com.ruoyi.common.exception.ServiceException;
 import com.ruoyi.common.utils.MessageUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.system.service.ISysUserService;
+import com.ruoyi.system.mapper.BikeUserAccessMapper;
 
 /**
  * 用户验证处理
@@ -33,6 +34,9 @@ public class UserDetailsServiceImpl implements UserDetailsService
 
     @Autowired
     private SysPermissionService permissionService;
+
+    @Autowired
+    private BikeUserAccessMapper userAccessMapper;
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException
@@ -55,6 +59,11 @@ public class UserDetailsServiceImpl implements UserDetailsService
         }
 
         passwordService.validate(user);
+
+        if (userAccessMapper.countAllowed(user.getUserId()) != 1)
+        {
+            throw new ServiceException("该账号已被限制使用，请联系管理员");
+        }
 
         return createLoginUser(user);
     }

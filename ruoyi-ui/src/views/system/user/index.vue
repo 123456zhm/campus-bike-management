@@ -69,7 +69,7 @@
               <span>{{ parseTime(scope.row.createTime) }}</span>
             </template>
           </el-table-column>
-          <el-table-column label="操作" align="center" width="150" class-name="small-padding fixed-width">
+          <el-table-column label="操作" align="center" width="190" class-name="small-padding fixed-width">
             <template #default="scope">
               <el-tooltip content="修改" placement="top" v-if="scope.row.userId !== 1">
                 <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['system:user:edit']"></el-button>
@@ -82,6 +82,9 @@
               </el-tooltip>
               <el-tooltip content="分配角色" placement="top" v-if="scope.row.userId !== 1">
                 <el-button link type="primary" icon="CircleCheck" @click="handleAuthRole(scope.row)" v-hasPermi="['system:user:edit']"></el-button>
+              </el-tooltip>
+              <el-tooltip content="黑名单管理" placement="top" v-if="scope.row.userId !== 1">
+                <el-button link type="warning" icon="Warning" @click="handleBlacklist(scope.row)" v-hasPermi="['system:user:edit']" aria-label="黑名单管理"></el-button>
               </el-tooltip>
             </template>
           </el-table-column>
@@ -190,6 +193,7 @@ import ExcelImportDialog from "@/components/ExcelImportDialog"
 import UserViewDrawer from "./view"
 import { usePasswordRule } from "@/utils/passwordRule"
 import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, updateUser, addUser, deptTreeSelect } from "@/api/system/user"
+import { getBlacklist, updateBlacklist } from "@/api/campus/userAccess"
 
 const router = useRouter()
 const { proxy } = getCurrentInstance()
@@ -322,6 +326,29 @@ function handleStatusChange(row) {
   }).catch(function () {
     row.status = row.status === "0" ? "1" : "0"
   })
+}
+
+/** 黑名单变更会使该账号现有会话在下次请求时失效。 */
+async function handleBlacklist(row) {
+  const result = await getBlacklist(row.userId)
+  const blocked = Number(result.data.blacklisted) === 1
+  if (blocked) {
+    try {
+      await proxy.$modal.confirm(`确认将“${row.userName}”移出黑名单？`)
+      await updateBlacklist({ userId: row.userId, blacklisted: false })
+      proxy.$modal.msgSuccess('已移出黑名单')
+    } catch (_) { /* 取消或请求失败时保持原状态 */ }
+    return
+  }
+  try {
+    const { value } = await proxy.$prompt(`请填写将“${row.userName}”加入黑名单的原因`, '黑名单管理', {
+      confirmButtonText: '确定', cancelButtonText: '取消', closeOnClickModal: false,
+      inputType: 'textarea', inputValidator: value => !!value?.trim() && value.trim().length <= 255,
+      inputErrorMessage: '请填写不超过255字的原因', inputAttributes: { maxlength: 255 }
+    })
+    await updateBlacklist({ userId: row.userId, blacklisted: true, reason: value.trim() })
+    proxy.$modal.msgSuccess('已加入黑名单')
+  } catch (_) { /* 取消或请求失败时保持原状态 */ }
 }
 
 /** 更多操作 */

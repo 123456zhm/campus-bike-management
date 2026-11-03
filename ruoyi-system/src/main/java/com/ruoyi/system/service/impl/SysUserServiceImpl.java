@@ -277,9 +277,20 @@ public class SysUserServiceImpl implements ISysUserService
      * @return 结果
      */
     @Override
+    @Transactional
     public boolean registerUser(SysUser user)
     {
-        return userMapper.insertUser(user) > 0;
+        SysRole role = roleMapper.checkRoleKeyUnique("campus_user");
+        if (role == null || !"0".equals(role.getStatus()) || !"0".equals(role.getDelFlag()))
+        {
+            throw new ServiceException("普通用户角色未配置，请联系管理员");
+        }
+        if (userMapper.insertUser(user) <= 0)
+        {
+            return false;
+        }
+        insertUserRole(user.getUserId(), new Long[] { role.getRoleId() });
+        return true;
     }
 
     /**

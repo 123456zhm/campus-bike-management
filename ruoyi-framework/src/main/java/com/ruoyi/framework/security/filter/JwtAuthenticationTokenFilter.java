@@ -15,6 +15,7 @@ import com.ruoyi.common.core.domain.model.LoginUser;
 import com.ruoyi.common.utils.SecurityUtils;
 import com.ruoyi.common.utils.StringUtils;
 import com.ruoyi.framework.web.service.TokenService;
+import com.ruoyi.system.mapper.BikeUserAccessMapper;
 
 /**
  * token过滤器 验证token有效性
@@ -27,11 +28,21 @@ public class JwtAuthenticationTokenFilter extends OncePerRequestFilter
     @Autowired
     private TokenService tokenService;
 
+    @Autowired
+    private BikeUserAccessMapper userAccessMapper;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException
     {
         LoginUser loginUser = tokenService.getLoginUser(request);
+        // Re-check the database on every request so a disabled account cannot
+        // keep using a token issued before the administrator's change.
+        if (loginUser != null && userAccessMapper.countAllowed(loginUser.getUserId()) != 1)
+        {
+            tokenService.delLoginUser(loginUser.getToken());
+            loginUser = null;
+        }
         if (StringUtils.isNotNull(loginUser) && StringUtils.isNull(SecurityUtils.getAuthentication()))
         {
             tokenService.verifyToken(loginUser);
