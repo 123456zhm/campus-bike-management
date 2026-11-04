@@ -11,6 +11,7 @@
           <div class="card-top"><span class="availability"><i></i>可借用</span><span class="card-index">CAMPUS BIKE</span></div>
           <div class="bike-mark" aria-hidden="true"><div></div><div></div><span></span></div>
           <div class="card-detail"><div><small>车辆编号</small><strong>{{ vehicle.vehicleNo }}</strong></div><div class="station"><small>所在站点</small><strong>{{ vehicle.stationName }}</strong></div></div>
+          <el-button v-hasPermi="['campus:rental:borrow']" class="borrow-button" type="primary" plain @click="borrow(vehicle)">借用车辆</el-button>
         </article>
         <el-empty v-if="!loading && rows.length === 0" description="暂无可借车辆，请稍后再来看看" />
       </div>
@@ -21,10 +22,20 @@
 <script setup name="CampusVehicleBrowse">
 import { onMounted, reactive, ref } from 'vue'
 import { listAvailableVehicles } from '@/api/campus/vehicle'
+import { borrowVehicle } from '@/api/campus/rental'
+const { proxy } = getCurrentInstance()
 const query = reactive({ pageNum: 1, pageSize: 12, vehicleNo: '' })
 const rows = ref([]), total = ref(0), loading = ref(false)
 async function load() { loading.value = true; try { const response = await listAvailableVehicles(query); rows.value = response.rows; total.value = response.total } finally { loading.value = false } }
 function search() { query.pageNum = 1; load() }
+async function borrow(vehicle) {
+  try {
+    await proxy.$modal.confirm(`确认借用车辆 ${vehicle.vehicleNo}？`)
+    await borrowVehicle(vehicle.id)
+    proxy.$modal.msgSuccess('借车成功，可在“我的租借”中查看')
+    await load()
+  } catch (_) { /* 取消或请求失败时保持当前页面 */ }
+}
 onMounted(load)
 </script>
 <style scoped>
@@ -38,6 +49,7 @@ h1 { font-size:30px; line-height:1.35; letter-spacing:.04em; margin:14px 0; }.he
 .vehicle-grid { min-height:160px; display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }.ride-card { background:#fff; border:1px solid #dcebe3; border-radius:6px; padding:18px; min-width:0; transition:transform .2s ease,border-color .2s ease; }.ride-card:hover { transform:translateY(-3px); border-color:#8dc8af; }.card-top { display:flex; justify-content:space-between; align-items:center; }.availability { color:#217e60; font-size:12px; font-weight:700; }.availability i { display:inline-block; width:7px; height:7px; border-radius:50%; background:#42b88c; margin-right:6px; }.card-index { color:#a6bcb8; font-size:9px; letter-spacing:.1em; }
 .bike-mark { height:76px; display:flex; align-items:end; justify-content:center; gap:34px; padding-bottom:15px; position:relative; }.bike-mark div { width:38px; height:38px; border:3px solid #c8e8db; border-radius:50%; }.bike-mark span { position:absolute; width:56px; height:29px; bottom:26px; border-bottom:3px solid #79bca0; border-left:3px solid #79bca0; transform:skewX(-26deg); }
 .card-detail { border-top:1px solid #eff4f1; display:flex; gap:12px; justify-content:space-between; padding-top:15px; }.card-detail small,.card-detail strong { display:block; }.card-detail small { color:#91a8a1; font-size:11px; margin-bottom:6px; }.card-detail strong { font-size:14px; overflow-wrap:anywhere; }.station { text-align:right; }
+.borrow-button { width:100%; margin-top:16px; }
 @media (prefers-reduced-motion:reduce) { .ride-card { transition:none; } }
 @media (max-width:650px) { .browse-page { padding:10px; }.browse-hero { padding:28px 24px; min-height:210px; }.hero-orbit { opacity:.25; right:-85px; }.browse-content { padding:18px; }.section-heading { align-items:start; flex-direction:column; }.search { width:100%; }h1 { font-size:24px; } }
 </style>
