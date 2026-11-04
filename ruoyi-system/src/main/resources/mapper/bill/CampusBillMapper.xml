@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.bill.CampusBillMapper">
+  <resultMap id="bill" type="com.ruoyi.system.domain.bill.CampusBill">
+    <id property="id" column="id"/><result property="billNo" column="bill_no"/>
+    <result property="orderId" column="order_id"/><result property="orderNo" column="order_no"/>
+    <result property="vehicleNo" column="vehicle_no"/><result property="userId" column="user_id"/>
+    <result property="userName" column="user_name"/><result property="orderStatus" column="order_status"/>
+    <result property="orderAmount" column="order_amount"/><result property="payableAmount" column="payable_amount"/>
+    <result property="paidAmount" column="paid_amount"/><result property="status" column="status"/>
+    <result property="createdAt" column="created_at"/><result property="updatedAt" column="updated_at"/>
+  </resultMap>
+  <resultMap id="payment" type="com.ruoyi.system.domain.bill.CampusPayment">
+    <id property="id" column="id"/><result property="paymentNo" column="payment_no"/>
+    <result property="requestKey" column="request_key"/><result property="billId" column="bill_id"/>
+    <result property="billNo" column="bill_no"/><result property="orderNo" column="order_no"/>
+    <result property="amount" column="amount"/><result property="paidAt" column="paid_at"/>
+  </resultMap>
+  <select id="selectBills" resultMap="bill">
+    SELECT b.id,b.bill_no,b.order_id,b.payable_amount,b.paid_amount,b.status,b.created_at,b.updated_at,
+           o.order_no,o.user_id,o.status AS order_status,o.payable_amount AS order_amount,v.vehicle_no,u.user_name
+    FROM bike_bill b JOIN bike_rental_order o ON o.id=b.order_id
+    JOIN bike_vehicle v ON v.id=o.vehicle_id JOIN sys_user u ON u.user_id=o.user_id
+    <where>
+      <if test="userId != null">AND o.user_id=#{userId}</if>
+      <if test="filter != null and filter.billNo != null and filter.billNo != ''">AND b.bill_no LIKE CONCAT('%',#{filter.billNo},'%')</if>
+      <if test="filter != null and filter.orderNo != null and filter.orderNo != ''">AND o.order_no LIKE CONCAT('%',#{filter.orderNo},'%')</if>
+      <if test="filter != null and filter.status != null and filter.status != ''">AND b.status=#{filter.status}</if>
+      <if test="filter != null and filter.userName != null and filter.userName != ''">AND u.user_name LIKE CONCAT('%',#{filter.userName},'%')</if>
+    </where>
+    ORDER BY b.id DESC
+  </select>
+  <select id="selectPayments" resultMap="payment">
+    SELECT p.id,p.payment_no,p.bill_id,p.amount,p.paid_at,b.bill_no,o.order_no
+    FROM bike_payment_record p JOIN bike_bill b ON b.id=p.bill_id JOIN bike_rental_order o ON o.id=b.order_id
+    WHERE o.user_id=#{userId} ORDER BY p.id DESC
+  </select>
+  <select id="lockMyBill" resultMap="bill">
+    SELECT b.id,b.bill_no,b.order_id,b.payable_amount,b.paid_amount,b.status,b.created_at,b.updated_at,
+           o.order_no,o.user_id,o.status AS order_status,o.payable_amount AS order_amount
+    FROM bike_bill b JOIN bike_rental_order o ON o.id=b.order_id
+    WHERE b.id=#{billId} AND o.user_id=#{userId} FOR UPDATE
+  </select>
+  <select id="selectPaymentByRequestKey" resultMap="payment">
+    SELECT p.id,p.payment_no,p.request_key,p.bill_id,p.amount,p.paid_at,b.bill_no,o.order_no
+    FROM bike_payment_record p JOIN bike_bill b ON b.id=p.bill_id JOIN bike_rental_order o ON o.id=b.order_id
+    WHERE p.request_key=#{requestKey}
+  </select>
+  <insert id="insertPayment" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO bike_payment_record(payment_no,request_key,bill_id,amount,paid_at)
+    VALUES(#{paymentNo},#{requestKey},#{billId},#{amount},NOW())
+  </insert>
+  <update id="markPaid">
+    UPDATE bike_bill SET paid_amount=payable_amount,status='paid'
+    WHERE id=#{billId} AND status='unpaid' AND paid_amount=0 AND payable_amount&gt;0
+  </update>
+</mapper>
