@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.report.CampusReportMapper">
+  <resultMap id="vehicles" type="com.ruoyi.system.domain.report.VehicleSummary">
+    <result property="total" column="total"/><result property="idle" column="idle"/><result property="rented" column="rented"/>
+    <result property="repair" column="repair"/><result property="scrapped" column="scrapped"/>
+  </resultMap>
+  <resultMap id="station" type="com.ruoyi.system.domain.report.StationSummary" extends="vehicles">
+    <id property="stationId" column="station_id"/><result property="stationName" column="station_name"/>
+    <result property="stationStatus" column="station_status"/>
+  </resultMap>
+  <resultMap id="orders" type="com.ruoyi.system.domain.report.OrderSummary">
+    <result property="total" column="total"/><result property="completed" column="completed"/>
+  </resultMap>
+  <resultMap id="bills" type="com.ruoyi.system.domain.report.BillSummary">
+    <result property="billCount" column="bill_count"/><result property="receivable" column="receivable"/>
+    <result property="received" column="received"/><result property="outstanding" column="outstanding"/>
+  </resultMap>
+  <select id="vehicleSummary" resultMap="vehicles">
+    SELECT COUNT(*) AS total,
+      COALESCE(SUM(CASE WHEN status='idle' THEN 1 ELSE 0 END),0) AS idle,
+      COALESCE(SUM(CASE WHEN status='rented' THEN 1 ELSE 0 END),0) AS rented,
+      COALESCE(SUM(CASE WHEN status='repair' THEN 1 ELSE 0 END),0) AS repair,
+      COALESCE(SUM(CASE WHEN status='scrapped' THEN 1 ELSE 0 END),0) AS scrapped
+    FROM bike_vehicle
+  </select>
+  <select id="stationSummary" resultMap="station">
+    SELECT s.id AS station_id,s.name AS station_name,s.status AS station_status,COUNT(v.id) AS total,
+      COALESCE(SUM(CASE WHEN v.status='idle' THEN 1 ELSE 0 END),0) AS idle,
+      COALESCE(SUM(CASE WHEN v.status='rented' THEN 1 ELSE 0 END),0) AS rented,
+      COALESCE(SUM(CASE WHEN v.status='repair' THEN 1 ELSE 0 END),0) AS repair,
+      COALESCE(SUM(CASE WHEN v.status='scrapped' THEN 1 ELSE 0 END),0) AS scrapped
+    FROM bike_station s LEFT JOIN bike_vehicle v ON v.station_id=s.id
+    GROUP BY s.id,s.name,s.status ORDER BY s.name,s.id
+  </select>
+  <select id="orderSummary" resultMap="orders">
+    SELECT COUNT(*) AS total,COALESCE(SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END),0) AS completed
+    FROM bike_rental_order
+    <where><if test="fromTime != null">started_at &gt;= #{fromTime}</if><if test="toTime != null">AND started_at &lt; #{toTime}</if></where>
+  </select>
+  <select id="billSummary" resultMap="bills">
+    SELECT COUNT(*) AS bill_count,COALESCE(SUM(payable_amount),0) AS receivable,
+      COALESCE(SUM(paid_amount),0) AS received,COALESCE(SUM(payable_amount-paid_amount),0) AS outstanding
+    FROM bike_bill
+    <where><if test="fromTime != null">created_at &gt;= #{fromTime}</if><if test="toTime != null">AND created_at &lt; #{toTime}</if></where>
+  </select>
+  <select id="cashReceived" resultType="java.math.BigDecimal">
+    SELECT COALESCE(SUM(amount),0) FROM bike_payment_record
+    <where><if test="fromTime != null">paid_at &gt;= #{fromTime}</if><if test="toTime != null">AND paid_at &lt; #{toTime}</if></where>
+  </select>
+</mapper>
