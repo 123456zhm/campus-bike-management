@@ -1,7 +1,7 @@
 <template>
   <div class="browse-page">
     <header class="browse-hero">
-      <div class="hero-copy"><p class="eyebrow">CAMPUS RIDE / 轻松出发</p><h1>找一辆车，<br>去往校园的下一站。</h1><p class="hero-text">查看启用站点的空闲车辆，选择适合你的出发点。</p></div>
+      <div class="hero-copy"><p class="eyebrow">CAMPUS RIDE / 轻松出发</p><h1>找一辆车，<br>去往校园的下一站。</h1><p class="hero-text">查看启用站点的空闲车辆，选择适合你的出发点。</p><p v-if="billing" class="hero-text">当前收费：每 {{ billing.unitMinutes }} 分钟 ¥{{ Number(billing.unitPrice).toFixed(2) }}，不足一个计费单位按一个单位计算。</p></div>
       <div class="hero-orbit" aria-hidden="true"><span>GO</span><i></i><b></b></div>
     </header>
     <section class="browse-content">
@@ -23,9 +23,11 @@
 import { onMounted, reactive, ref } from 'vue'
 import { listAvailableVehicles } from '@/api/campus/vehicle'
 import { borrowVehicle } from '@/api/campus/rental'
+import { currentBilling } from '@/api/campus/settings'
 const { proxy } = getCurrentInstance()
 const query = reactive({ pageNum: 1, pageSize: 12, vehicleNo: '' })
 const rows = ref([]), total = ref(0), loading = ref(false)
+const billing = ref(null)
 async function load() { loading.value = true; try { const response = await listAvailableVehicles(query); rows.value = response.rows; total.value = response.total } finally { loading.value = false } }
 function search() { query.pageNum = 1; load() }
 async function borrow(vehicle) {
@@ -36,7 +38,7 @@ async function borrow(vehicle) {
     await load()
   } catch (_) { /* 取消或请求失败时保持当前页面 */ }
 }
-onMounted(load)
+onMounted(() => { load(); currentBilling().then(r => { billing.value = r.data }).catch(() => {}) })
 </script>
 <style scoped>
 .browse-page { padding:22px; color:#173a46; }

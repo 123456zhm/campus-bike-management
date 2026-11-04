@@ -19,6 +19,7 @@ import com.ruoyi.common.core.domain.AjaxResult;
 import com.ruoyi.common.core.page.TableDataInfo;
 import com.ruoyi.common.core.text.Convert;
 import com.ruoyi.common.enums.BusinessType;
+import com.ruoyi.framework.web.service.PermissionService;
 import com.ruoyi.system.domain.SysNotice;
 import com.ruoyi.system.service.ISysNoticeReadService;
 import com.ruoyi.system.service.ISysNoticeService;
@@ -38,6 +39,9 @@ public class SysNoticeController extends BaseController
     @Autowired
     private ISysNoticeReadService noticeReadService;
 
+    @Autowired
+    private PermissionService permissionService;
+
     /**
      * 获取通知公告列表
      */
@@ -56,7 +60,12 @@ public class SysNoticeController extends BaseController
     @GetMapping(value = "/{noticeId}")
     public AjaxResult getInfo(@PathVariable Long noticeId)
     {
-        return success(noticeService.selectNoticeById(noticeId));
+        SysNotice notice = noticeService.selectNoticeById(noticeId);
+        if (notice == null || (!"0".equals(notice.getStatus()) && !permissionService.hasPermi("system:notice:query")))
+        {
+            return error("公告不存在或已下线");
+        }
+        return success(notice);
     }
 
     /**
