@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.system.mapper.bike.BikeRepairMapper">
+    <resultMap id="RepairOrder" type="com.ruoyi.system.domain.bike.BikeRepairOrder">
+        <id property="id" column="id"/><result property="repairNo" column="repair_no"/>
+        <result property="vehicleId" column="vehicle_id"/><result property="vehicleNo" column="vehicle_no"/>
+        <result property="reporterId" column="reporter_id"/><result property="reporterName" column="reporter_name"/>
+        <result property="description" column="description"/><result property="status" column="status"/>
+        <result property="createdAt" column="created_at"/><result property="updatedAt" column="updated_at"/>
+        <result property="resolvedAt" column="resolved_at"/>
+    </resultMap>
+    <resultMap id="RepairRecord" type="com.ruoyi.system.domain.bike.BikeRepairRecord">
+        <id property="id" column="id"/><result property="repairId" column="repair_id"/>
+        <result property="operatorId" column="operator_id"/><result property="operatorName" column="operator_name"/>
+        <result property="fromStatus" column="from_status"/><result property="toStatus" column="to_status"/>
+        <result property="note" column="note"/><result property="createdAt" column="created_at"/>
+    </resultMap>
+    <resultMap id="LockedVehicle" type="com.ruoyi.system.domain.bike.BikeVehicle">
+        <id property="id" column="id"/><result property="vehicleNo" column="vehicle_no"/>
+        <result property="status" column="status"/>
+    </resultMap>
+    <sql id="RepairColumns">
+        SELECT r.id,r.repair_no,r.vehicle_id,v.vehicle_no,r.reporter_id,u.nick_name AS reporter_name,
+               r.description,r.status,r.created_at,r.updated_at,r.resolved_at
+        FROM bike_repair_order r JOIN bike_vehicle v ON v.id=r.vehicle_id JOIN sys_user u ON u.user_id=r.reporter_id
+    </sql>
+    <select id="selectList" resultMap="RepairOrder">
+        <include refid="RepairColumns"/>
+        <where>
+            <if test="ownerId != null">AND r.reporter_id=#{ownerId}</if>
+            <if test="filter.repairNo != null and filter.repairNo != ''">AND r.repair_no LIKE CONCAT('%',#{filter.repairNo},'%')</if>
+            <if test="filter.vehicleNo != null and filter.vehicleNo != ''">AND v.vehicle_no LIKE CONCAT('%',#{filter.vehicleNo},'%')</if>
+            <if test="filter.status != null and filter.status != ''">AND r.status=#{filter.status}</if>
+        </where>
+        ORDER BY r.id DESC
+    </select>
+    <select id="selectById" resultMap="RepairOrder">
+        <include refid="RepairColumns"/> WHERE r.id=#{id}
+        <if test="ownerId != null">AND r.reporter_id=#{ownerId}</if>
+    </select>
+    <select id="lockOrder" resultMap="RepairOrder">SELECT id,vehicle_id,status FROM bike_repair_order WHERE id=#{id} FOR UPDATE</select>
+    <select id="lockVehicleById" resultMap="LockedVehicle">SELECT id,vehicle_no,status FROM bike_vehicle WHERE id=#{id} FOR UPDATE</select>
+    <select id="lockVehicleByNo" resultMap="LockedVehicle">SELECT id,vehicle_no,status FROM bike_vehicle WHERE vehicle_no=#{vehicleNo} FOR UPDATE</select>
+    <select id="selectOpenRepairForUpdate" resultType="long">
+        SELECT id FROM bike_repair_order WHERE vehicle_id=#{vehicleId} AND status IN ('pending','processing') LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectActiveRentalForUpdate" resultType="long">
+        SELECT id FROM bike_rental_order WHERE active_vehicle_id=#{vehicleId} LIMIT 1 FOR UPDATE
+    </select>
+    <insert id="insertOrder" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO bike_repair_order(repair_no,vehicle_id,reporter_id,description,status)
+        VALUES(#{repairNo},#{vehicleId},#{reporterId},#{description},#{status})
+    </insert>
+    <update id="updateOrder">
+        UPDATE bike_repair_order SET status=#{status},resolved_at=CASE WHEN #{status}='completed' THEN NOW() ELSE NULL END WHERE id=#{id}
+    </update>
+    <update id="updateVehicleStatus">UPDATE bike_vehicle SET status=#{status} WHERE id=#{id}</update>
+    <insert id="insertRecord">
+        INSERT INTO bike_repair_record(repair_id,operator_id,from_status,to_status,note)
+        VALUES(#{repairId},#{operatorId},#{fromStatus},#{toStatus},#{note})
+    </insert>
+    <select id="selectRecords" resultMap="RepairRecord">
+        SELECT h.id,h.repair_id,h.operator_id,u.nick_name AS operator_name,h.from_status,h.to_status,h.note,h.created_at
+        FROM bike_repair_record h JOIN sys_user u ON u.user_id=h.operator_id
+        WHERE h.repair_id=#{repairId} ORDER BY h.id ASC
+    </select>
+</mapper>
